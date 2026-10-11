@@ -37,6 +37,19 @@
  * The Chinese-language rule: every thought and every intermediate output is
  * written in Chinese, while code and symbols keep their original form.
  *
+ * WHY THE THINKING CLAUSE NAMES THE REASONING STREAM: measured on this
+ * deployment (session log, 210 reasoning blocks vs 131 visible text blocks),
+ * the rule held for visible output — 3% of text blocks were predominantly
+ * English — but slipped for the reasoning stream, where 26% were. The failures
+ * were not scattered prose but a consistent register: "Let me check…", "Let me
+ * look at…" step planning, which is exactly the "计划、进度说明" the detail
+ * lines already name. The model was reading "思考" as "the thinking I show the
+ * user" and treating the reasoning stream as unconstrained scratch space. The
+ * text therefore binds the clause to the reasoning stream by name, states that
+ * the surrounding context's language is irrelevant (the system prompt around
+ * these rules, file contents, and tool results are all English), and names the
+ * observed "Let me…" pattern so the slip is recognizable in the act.
+ *
  * The code/symbol carve-out is not decoration — without it the rule collides
  * with the harness's own instructions, which pin identifiers, paths, flags, and
  * tool arguments to their literal spelling. Stating the exemption in the same
@@ -44,6 +57,8 @@
  */
 export const CHINESE_RULE_TEXT = [
   '**必须用中文思考和输出；代码、标识符与符号保持原样，不翻译、不改写。**',
+  '「思考」指的是你的推理过程本身，不只是你展示给用户的那部分。即使上下文中其他内容都是英文、即使你在分析英文文件或英文报错，你的推理也必须用中文写。',
+  '典型违规：推理里出现 "Let me check…"、"Let me look at…"、"Now I need to…" 这类英文的下一步计划。这类计划、进度说明正是本规则要求用中文写的部分。',
   '所有思考过程和临时输出都必须使用中文。',
   '这包括你的内部分析、推理、计划、进度说明、以及对结果的解释。',
   '以下内容保持原样，不翻译、不改写：代码、标识符、函数名与变量名、文件路径、命令、命令行参数、配置键、API 名称、以及各种符号。',
@@ -102,17 +117,50 @@ export const EDIT_TOOL_RULE_SECTION = 'falling-ts:dsh-chinese/edit-tool'
 export const INLINE_SCRIPT_RULE_SECTION = 'falling-ts:dsh-chinese/inline-script'
 
 /**
- * The fixed, non-negative offset applied to the anchored section orders below.
+ * The fixed, non-negative offset applied to the tool-rule orders below.
  *
- * All sections are placed immediately BEFORE the first-party tool guidance
- * (`TOOL_BASH` = 1000 and up). Rationale: the edit-tool rule constrains how the
- * `edit` / `write` tools are used, so it must be read before their own
- * descriptions rather than appended after — a trailing constraint competes with
- * tool descriptions the model has already committed to. Sitting before them
- * also keeps this deployment's policy out of the per-tool guidance block, which
- * upstream owns and may reorder.
+ * The edit-tool and inline-script rules sit immediately BEFORE the first-party
+ * tool guidance (`TOOL_BASH` = 1000 and up). Rationale: the edit-tool rule
+ * constrains how the `edit` / `write` tools are used, so it must be read before
+ * their own descriptions rather than appended after — a trailing constraint
+ * competes with tool descriptions the model has already committed to. Sitting
+ * before them also keeps this deployment's policy out of the per-tool guidance
+ * block, which upstream owns and may reorder.
+ *
+ * The language rule deliberately does NOT use this offset: see
+ * {@link TAIL_ORDER_OFFSET}.
  */
 export const SECTION_ORDER_OFFSET = -40
+
+/**
+ * The offset applied to the tail anchor for the language rule.
+ *
+ * WHY THE LANGUAGE RULE SITS AT THE END INSTEAD OF BESIDE THE TOOL RULES: the
+ * two groups have different failure modes, so the "read it before the tool
+ * descriptions" rationale above does not transfer.
+ *
+ * The tool rules are a scoping constraint on a specific mechanism the model is
+ * about to use, so they must precede that mechanism's description. The language
+ * rule is a standing property of every reasoning step; what erodes it is not a
+ * competing instruction but the sheer volume of English around it — the
+ * assembled system prompt is mostly English, and the conversation, file
+ * contents, and tool results are English too. Measured on this deployment, the
+ * reasoning stream's Chinese density fell from 0.62 at the turn's first step to
+ * 0.35-0.38 by steps 3-6, the classic dilution profile. Recency is the lever
+ * available for that: the last section is read closest to the first user turn,
+ * with none of the prompt's English tool guidance between it and the work.
+ *
+ * `+1` places it strictly after `DEPLOYMENT_PERSONA_SUFFIX`, which is the
+ * registry's own final slot, so it is the last thing in the prompt.
+ */
+export const TAIL_ORDER_OFFSET = 1
+
+/**
+ * The registry slot the language rule anchors to. `DEPLOYMENT_PERSONA_SUFFIX`
+ * is the registry's last allocated order, so anchoring there (plus
+ * {@link TAIL_ORDER_OFFSET}) makes the rule the final section of the prompt.
+ */
+export const TAIL_ANCHOR_SLOT = 'DEPLOYMENT_PERSONA_SUFFIX'
 
 /**
  * Compose the ordered section contributions for one assembly.
@@ -125,33 +173,46 @@ export const SECTION_ORDER_OFFSET = -40
  * @param {boolean} options.chinese - include {@link CHINESE_RULE_TEXT}.
  * @param {boolean} options.editTool - include {@link EDIT_TOOL_RULE_TEXT}.
  * @param {boolean} options.inlineScript - include {@link INLINE_SCRIPT_RULE_TEXT}.
- * @param {number} options.anchorOrder - the registry's `TOOL_BASH` order, used
- *   as the anchor for every section (see {@link SECTION_ORDER_OFFSET}).
+ * @param {number} options.anchorOrder - the registry's `TOOL_BASH` order, the
+ *   anchor for the tool rules (see {@link SECTION_ORDER_OFFSET}).
+ * @param {number} [options.tailAnchorOrder] - the registry's
+ *   {@link TAIL_ANCHOR_SLOT} order, the anchor for the language rule. Omitted
+ *   callers get the tool-rules-only layout; the section list then simply
+ *   contains no language rule at the tail.
  * @returns {Array<{name: string, order: number, text: string}>} zero to three
- *   sections in assembly order. Empty when every rule is disabled.
+ *   sections. Empty when every rule is disabled.
  */
-export function buildSections({ chinese, editTool, inlineScript, anchorOrder }) {
+export function buildSections({ chinese, editTool, inlineScript, anchorOrder, tailAnchorOrder }) {
   const order = anchorOrder + SECTION_ORDER_OFFSET
   const sections = []
   let slot = 0
-  if (chinese) {
-    sections.push({ name: CHINESE_RULE_SECTION, order: order + slot, text: CHINESE_RULE_TEXT })
-    slot += 1
-  }
+  // Tool rules first, in assembly order. Distinct, strictly increasing orders
+  // keep the intended order deterministic when both are on: equal orders are
+  // tie-broken by code-unit name order, which would put "edit-tool" before
+  // "inline-script" — right here by luck, but naming the order explicitly is
+  // cheaper than relying on that coincidence, and it stops being luck the
+  // moment a fourth tool rule is added.
   if (editTool) {
-    // Distinct, strictly increasing orders keep the intended order deterministic
-    // when several rules are on: sections with equal orders are tie-broken by
-    // code-unit name order, which would put "edit-tool" before "language" and
-    // read the tool rule first. Naming the intended order explicitly is cheaper
-    // than relying on that coincidence.
     sections.push({ name: EDIT_TOOL_RULE_SECTION, order: order + slot, text: EDIT_TOOL_RULE_TEXT })
     slot += 1
   }
   if (inlineScript) {
-    // Last of the three: it refines the edit-tool rule (HOW to run the
-    // verification script that rule permits), so it reads directly after it.
+    // Directly after the edit-tool rule: it refines that rule (HOW to run the
+    // verification script the other rule permits), so it reads as one block.
     sections.push({ name: INLINE_SCRIPT_RULE_SECTION, order: order + slot, text: INLINE_SCRIPT_RULE_TEXT })
     slot += 1
+  }
+  if (chinese && Number.isFinite(tailAnchorOrder)) {
+    // Emitted LAST in the returned list, but its order is far higher than the
+    // tool rules' — the registry sorts by `order`, not by insertion. Both facts
+    // matter: the list keeps a stable "rules the plugin contributes" reading
+    // order for callers and probes, while the order field is what decides where
+    // the section actually lands in the prompt.
+    sections.push({
+      name: CHINESE_RULE_SECTION,
+      order: tailAnchorOrder + TAIL_ORDER_OFFSET,
+      text: CHINESE_RULE_TEXT,
+    })
   }
   return sections
 }
