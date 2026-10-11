@@ -15,6 +15,12 @@
  *      scratch file is left behind. Only a script meant to be kept, reused, or
  *      referenced by the project is written into the repository.
  *
+ * Each rule opens with a bolded one-line digest of its core requirement
+ * (`**…**`); the detail lines under it remain the contract. The emphasis is
+ * emitted verbatim — upstream's `renderPrompt` interpolates only `{{…}}` and
+ * drops empty sections — and mirrors how first-party system prompts mark their
+ * own binding rules.
+ *
  * THE SEAM: `ctx.systemPrompt.section()` — the documented system-prompt
  * extension point first-party tool packages use. No upstream source is touched
  * and no runtime object is patched.

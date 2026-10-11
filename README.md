@@ -7,7 +7,9 @@
 ## What it does
 
 The plugin registers three sections on the harness system-prompt registry, so all three rules
-reach the model on every request in this deployment:
+reach the model on every request in this deployment. Each rule opens with a **bolded one-line
+digest** (`**…**`) of its core requirement, followed by the detail lines that remain the
+actual contract:
 
 1. **All thinking and temporary output must be written in Chinese**, while code,
    identifiers, file paths, commands, flags, configuration keys, API names, and symbols
@@ -83,7 +85,7 @@ dsh-chinese/
 ├── index.js                 # the Cordis plugin entry
 ├── src/
 │   ├── core/
-│   │   ├── prompt-text.js   # the three fixed Chinese rules + section names/orders
+│   │   ├── prompt-text.js   # the three fixed Chinese rules (each with a bolded digest) + section names/orders
 │   │   └── settings.js      # the falling-ts-chinese Config (three toggles)
 │   └── hooks/
 │       └── sections.js      # registration on the live system-prompt registry
@@ -124,7 +126,7 @@ exports at startup — that is a harness rule, not a property of this plugin.
 ## Verification
 
 ```sh
-node exploration/ch-prompt-probe.mjs        # 99 checks, fully offline
+node exploration/ch-prompt-probe.mjs        # 111 checks, fully offline
 node exploration/plugin-manifest-check.mjs  # shared manifest gate (5 plugins)
 ```
 

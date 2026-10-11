@@ -20,6 +20,16 @@
  * task-relevant concepts, never this plugin, the harness, its settings, or any
  * UI/transport vocabulary. It reads as a standing deployment instruction.
  *
+ * EMPHASIS (`**…**`): each rule opens with a bolded one-line digest of its core
+ * requirement. The digest is not a summary for human readers — it is what makes
+ * the rule register as a standing constraint rather than another paragraph of
+ * prose among the official tool descriptions these sections sit next to. Two
+ * properties keep it honest: it restates the requirement, never adds one (the
+ * detail lines below it remain the contract, and the probe pins both), and it
+ * is emitted verbatim because `renderPrompt` only interpolates `{{…}}` and
+ * drops empty sections — the asterisks reach the model as written. Upstream
+ * itself relies on this: its own system prompts bold their binding rules.
+ *
  * @module @falling-ts/dsh-chinese/prompt-text
  */
 
@@ -33,6 +43,7 @@
  * breath keeps prose Chinese and technical tokens untouched.
  */
 export const CHINESE_RULE_TEXT = [
+  '**必须用中文思考和输出；代码、标识符与符号保持原样，不翻译、不改写。**',
   '所有思考过程和临时输出都必须使用中文。',
   '这包括你的内部分析、推理、计划、进度说明、以及对结果的解释。',
   '以下内容保持原样，不翻译、不改写：代码、标识符、函数名与变量名、文件路径、命令、命令行参数、配置键、API 名称、以及各种符号。',
@@ -50,6 +61,7 @@ export const CHINESE_RULE_TEXT = [
  * return to the editing tool when verification fails — closes that gap.
  */
 export const EDIT_TOOL_RULE_TEXT = [
+  '**修改文件必须用编辑文件工具；命令与脚本只能用于检验，检验出错必须回到编辑工具修正。**',
   '编辑或修改文件时，必须使用专门的编辑文件工具。',
   '禁止使用命令行或脚本（包括 mjs、js、py 等任何脚本语言）来创建、写入、修改、删除文件。',
   '命令和脚本只能用于检验文件修改的结果，例如运行测试、类型检查、格式化检查、或读取文件确认内容。',
@@ -73,6 +85,7 @@ export const EDIT_TOOL_RULE_TEXT = [
  * file. Without it the rule would push useful tooling out of version control.
  */
 export const INLINE_SCRIPT_RULE_TEXT = [
+  '**校验脚本一律内联执行，不要先写临时文件；只有需长期留存的脚本才写进仓库。**',
   '需要执行校验脚本时，优先直接内联执行，不要先创建临时文件再运行，以免遗留临时文件、污染项目。',
   '用 here-document 或 -e 传入多行代码：python3 - <<\'PY\' … PY，或 python3 -c \'…\'；node --input-type=module -e \'…\'，或 node - <<\'JS\' … JS。',
   '仅当脚本需要长期留存、被复用、或被项目正式引用时，才将它写入仓库文件。',

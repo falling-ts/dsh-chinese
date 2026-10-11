@@ -6,13 +6,19 @@
 #
 # The Host half registers three sections on the system-prompt registry — the
 # documented extension point first-party tool packages use — so every model
-# request carries three standing rules:
+# request carries three standing rules. Each rule opens with a BOLDED one-line
+# digest (`**…**`) of its core requirement, followed by the detail lines that
+# remain the actual contract:
 #
 #   1. all thinking and temporary output in Chinese, code and symbols verbatim;
 #   2. every file edit through the editing tools, with commands and scripts
 #      allowed only to VERIFY an edit;
 #   3. a verification script run inline (here-document or -e) rather than
 #      written to a temporary file first, so no scratch file is left behind.
+#
+# The `**…**` reaches the model as written: upstream's `renderPrompt` only
+# interpolates `{{…}}` and drops empty sections, so the markers are not markup
+# to be stripped — first-party system prompts use the same emphasis.
 #
 # All three rules default to on and are toggled through the entry's own Config
 # (chineseOnly / editToolOnly / inlineScriptOnly). There is no client half: the
