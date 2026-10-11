@@ -1,0 +1,21 @@
+# Opt-in layer: mount the dsh-chinese function plugin over the current
+# composition without changing shipped defaults.
+#
+#   dsh plugin --profile web add github:falling-ts/dsh-chinese   # install
+#   dsh web --patch dsh-chinese/cordis.patch.yml                 # dev overlay
+#
+# The Host half registers two sections on the system-prompt registry — the
+# documented extension point first-party tool packages use — so every model
+# request carries two standing rules:
+#
+#   1. all thinking and temporary output in Chinese, code and symbols verbatim;
+#   2. every file edit through the editing tools, with commands and scripts
+#      allowed only to VERIFY an edit.
+#
+# Both rules default to on and are toggled through the entry's own Config
+# (chineseOnly / editToolOnly). There is no client half: the rules change what
+# the model reads, not what the UI shows.
+
+- insert:
+    - id: falling-ts-chinese
+      name: '@falling-ts/dsh-chinese'

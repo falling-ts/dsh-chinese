@@ -1,0 +1,58 @@
+{
+  "name": "@falling-ts/dsh-chinese",
+  "version": "0.1.0",
+  "description": "DSH Cordis plugin: appends two standing rules to the system prompt of every model request — all thinking and temporary output must be written in Chinese while code and symbols keep their original form, and every file edit must go through the file-editing tools rather than a command or script, which may only verify an edit.",
+  "type": "module",
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js",
+    "./locale/*.json": "./locale/*.json",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "src/",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg"
+  ],
+  "icon": "./icon.svg",
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/cordis": ">=4.0.4",
+    "@deepseek-ai/dsh-settings": ">=0.2.0-rc.1",
+    "@deepseek-ai/dsh-system-prompt": ">=0.2.0-rc.1",
+    "@deepseek-ai/schemastery": ">=3.18.4"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-settings": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-system-prompt": {
+      "optional": true
+    },
+    "@deepseek-ai/schemastery": {
+      "optional": true
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/falling-ts/dsh-chinese.git"
+  },
+  "keywords": [
+    "dsh",
+    "cordis",
+    "system-prompt",
+    "chinese",
+    "locale",
+    "prompt"
+  ]
+}
