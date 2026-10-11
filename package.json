@@ -1,7 +1,7 @@
 {
   "name": "@falling-ts/dsh-chinese",
-  "version": "0.1.0",
-  "description": "DSH Cordis plugin: appends two standing rules to the system prompt of every model request — all thinking and temporary output must be written in Chinese while code and symbols keep their original form, and every file edit must go through the file-editing tools rather than a command or script, which may only verify an edit.",
+  "version": "0.1.1",
+  "description": "DSH Cordis plugin: appends three standing rules to the system prompt of every model request — all thinking and temporary output must be written in Chinese while code and symbols keep their original form, every file edit must go through the file-editing tools rather than a command or script, which may only verify an edit, and a verification script must run inline (here-document or -e) instead of being written to a temporary file first.",
   "type": "module",
   "main": "./index.js",
   "exports": {

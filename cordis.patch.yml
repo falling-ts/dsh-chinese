@@ -4,17 +4,19 @@
 #   dsh plugin --profile web add github:falling-ts/dsh-chinese   # install
 #   dsh web --patch dsh-chinese/cordis.patch.yml                 # dev overlay
 #
-# The Host half registers two sections on the system-prompt registry — the
+# The Host half registers three sections on the system-prompt registry — the
 # documented extension point first-party tool packages use — so every model
-# request carries two standing rules:
+# request carries three standing rules:
 #
 #   1. all thinking and temporary output in Chinese, code and symbols verbatim;
 #   2. every file edit through the editing tools, with commands and scripts
-#      allowed only to VERIFY an edit.
+#      allowed only to VERIFY an edit;
+#   3. a verification script run inline (here-document or -e) rather than
+#      written to a temporary file first, so no scratch file is left behind.
 #
-# Both rules default to on and are toggled through the entry's own Config
-# (chineseOnly / editToolOnly). There is no client half: the rules change what
-# the model reads, not what the UI shows.
+# All three rules default to on and are toggled through the entry's own Config
+# (chineseOnly / editToolOnly / inlineScriptOnly). There is no client half: the
+# rules change what the model reads, not what the UI shows.
 
 - insert:
     - id: falling-ts-chinese

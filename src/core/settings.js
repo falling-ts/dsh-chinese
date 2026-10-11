@@ -1,12 +1,12 @@
 /**
- * dsh-chinese settings — two boolean toggles, nothing else.
+ * dsh-chinese settings — three boolean toggles, nothing else.
  *
  * The prompt TEXT is not configurable (see src/core/prompt-text.js): the rule
  * is the plugin's purpose, and an editable copy would only create a second
  * place for it to drift. What a deployment legitimately varies is whether each
- * rule applies at all — a Chinese-speaking operator wants both, while a
+ * rule applies at all — a Chinese-speaking operator wants all three, while a
  * polyglot deployment may want the language rule off and the edit-tool rule on.
- * That is exactly two booleans, and neither has a real third state.
+ * That is exactly three booleans, and none has a real third state.
  *
  * Harness 0.1.7 replaced the old `settings.register(ns, schema, { base })` API
  * with a Config-driven model: the plugin exports `Config`, the settings form
@@ -32,15 +32,19 @@ export const CHINESE_FIELD = 'chineseOnly'
 /** Field name: the edit-tool rule toggle. */
 export const EDIT_TOOL_FIELD = 'editToolOnly'
 
+/** Field name: the inline-verification-script rule toggle. */
+export const INLINE_SCRIPT_FIELD = 'inlineScriptOnly'
+
 /**
  * Defaults — the schema `.default()` values in {@link buildConfigSchema}.
- * Both default ON: installing the plugin is the opt-in, and a plugin that does
+ * All default ON: installing the plugin is the opt-in, and a plugin that does
  * nothing until a second switch is found is a worse failure than a rule an
  * operator explicitly turns off.
  */
 export const DEFAULTS = Object.freeze({
   chineseOnly: true,
   editToolOnly: true,
+  inlineScriptOnly: true,
 })
 
 /**
@@ -95,13 +99,15 @@ export function readToggle(field, fallback) {
 }
 
 /**
- * Resolve both rule toggles for one assembly.
- * @returns {{chinese: boolean, editTool: boolean}} the effective toggles.
+ * Resolve all rule toggles for one assembly.
+ * @returns {{chinese: boolean, editTool: boolean, inlineScript: boolean}} the
+ *   effective toggles.
  */
 export function readRuleToggles() {
   return {
     chinese: readToggle(CHINESE_FIELD, DEFAULTS.chineseOnly),
     editTool: readToggle(EDIT_TOOL_FIELD, DEFAULTS.editToolOnly),
+    inlineScript: readToggle(INLINE_SCRIPT_FIELD, DEFAULTS.inlineScriptOnly),
   }
 }
 
@@ -157,6 +163,7 @@ export async function buildConfigSchema() {
     return z.object({
       chineseOnly: z.boolean().default(DEFAULTS.chineseOnly).volatile(),
       editToolOnly: z.boolean().default(DEFAULTS.editToolOnly).volatile(),
+      inlineScriptOnly: z.boolean().default(DEFAULTS.inlineScriptOnly).volatile(),
     })
   } catch {
     return undefined

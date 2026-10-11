@@ -1,6 +1,6 @@
 /**
- * dsh-chinese section registration — mount the two fixed prompt sections on the
- * system-prompt registry.
+ * dsh-chinese section registration — mount the three fixed prompt sections on
+ * the system-prompt registry.
  *
  * THE SEAM: `ctx.systemPrompt.section({ name, order, text })`
  * (`@deepseek-ai/dsh-system-prompt`). It is the documented extension point for
@@ -31,6 +31,9 @@
 
 import {
   buildSections,
+  CHINESE_RULE_SECTION,
+  EDIT_TOOL_RULE_SECTION,
+  INLINE_SCRIPT_RULE_SECTION,
   SECTION_ORDER_OFFSET,
 } from '../core/prompt-text.js'
 import { readRuleToggles } from '../core/settings.js'
@@ -79,17 +82,21 @@ function resolveAnchorOrder(systemPrompt) {
  *
  * @param {import('@deepseek-ai/cordis').Context} ctx - plugin context with
  *   `systemPrompt` active (declared in this plugin's `inject`).
- * @returns {number} how many sections were registered (0 when both rules are
- *   disabled at load and the caller chose to skip registration entirely).
+ * @returns {number} how many sections were registered.
  */
 export function registerPromptSections(ctx) {
   const systemPrompt = ctx.systemPrompt
   const anchorOrder = resolveAnchorOrder(systemPrompt)
 
   // Register every section the plugin can contribute, not just the currently
-  // enabled ones: the provider below decides per assembly, so flipping a toggle
+  // enabled ones: the providers below decide per assembly, so flipping a toggle
   // later needs no re-registration.
-  const declared = buildSections({ chinese: true, editTool: true, anchorOrder })
+  const declared = buildSections({
+    chinese: true,
+    editTool: true,
+    inlineScript: true,
+    anchorOrder,
+  })
 
   for (const section of declared) {
     ctx.effect(() => systemPrompt.section({
@@ -106,17 +113,31 @@ export function registerPromptSections(ctx) {
 }
 
 /**
+ * Section name → toggle field. An explicit table rather than a suffix test:
+ * with three sections a name-shape heuristic ("anything not `/language` is the
+ * edit rule") would silently hand the inline-script section the wrong toggle the
+ * moment a fourth section is added.
+ */
+const TOGGLE_BY_SECTION = Object.freeze({
+  [CHINESE_RULE_SECTION]: 'chinese',
+  [EDIT_TOOL_RULE_SECTION]: 'editTool',
+  [INLINE_SCRIPT_RULE_SECTION]: 'inlineScript',
+})
+
+/**
  * Whether the rule owning `sectionName` is currently enabled.
  *
  * The name → toggle mapping lives here rather than being embedded in each
- * provider closure so the two sections cannot disagree about which field they
- * read.
+ * provider closure so the sections cannot disagree about which field they read.
+ * An unmapped name resolves to `true` (contribute the rule): a section
+ * registered without a toggle should not silently vanish.
  * @param {string} sectionName - one of the registered section names.
  * @returns {boolean} the live toggle for that section.
  */
 function isEnabled(sectionName) {
-  const toggles = readRuleToggles()
-  return sectionName.endsWith('/language') ? toggles.chinese : toggles.editTool
+  const toggle = TOGGLE_BY_SECTION[sectionName]
+  if (toggle === undefined) return true
+  return readRuleToggles()[toggle]
 }
 
 /**

@@ -1,12 +1,12 @@
 # dsh-chinese
 
-> DSH Cordis plugin — appends two standing rules to the system prompt of **every** model request.
+> DSH Cordis plugin — appends three standing rules to the system prompt of **every** model request.
 
 [中文说明](README.cn.md)
 
 ## What it does
 
-The plugin registers two sections on the harness system-prompt registry, so both rules
+The plugin registers three sections on the harness system-prompt registry, so all three rules
 reach the model on every request in this deployment:
 
 1. **All thinking and temporary output must be written in Chinese**, while code,
@@ -17,8 +17,25 @@ reach the model on every request in this deployment:
    modifying, or deleting files. They may only **verify** an edit — running tests, type
    checks, format checks, or reading a file back. When verification fails, the fix must
    also be made with the editing tool.
+3. **A verification script must run inline**, never be written to a temporary file first,
+   so no scratch file is left behind to pollute the project. Multi-line code goes straight
+   to the interpreter through a here-document or `-e`:
 
-Both rules are on by default and can be toggled independently.
+   ```sh
+   python3 - <<'PY'
+   ...
+   PY
+   python3 -c '...'
+   node --input-type=module -e '...'
+   node - <<'JS'
+   ...
+   JS
+   ```
+
+   Only a script meant to be kept, reused, or referenced by the project is written into
+   the repository.
+
+All three rules are on by default and can be toggled independently.
 
 ## Why the second rule names the verification path
 
@@ -27,6 +44,18 @@ its own work — and an agent that cannot verify will either skip verification o
 for the forbidden mechanism anyway. Naming commands and scripts as the verification
 surface, and requiring a return to the editing tool when verification fails, closes that
 gap: the prohibition and the permitted use are stated in the same breath.
+
+## Why the third rule is its own section
+
+The second rule says **whether** a script may run (verification only); the third says
+**how** to run it once it may (inline, leaving nothing behind). Creating a script in order
+to run it is itself a file creation — but one the second rule cannot forbid without also
+forbidding the verification it mandates, so the third rule closes that gap instead of
+contradicting the other.
+
+The escape hatch matters as much as the default: a helper that is genuinely reused, or
+referenced by the project, is a real repository file, and keeping it out would only push
+useful tooling out of version control.
 
 ## How it hooks in
 
@@ -40,12 +69,12 @@ prompt assembly: flipping a toggle applies to the next request with no restart a
 re-registration. A disabled rule renders to an empty string, which the harness drops, so
 it costs no tokens.
 
-Both sections are placed immediately **before** the first-party tool guidance block
+All three sections are placed immediately **before** the first-party tool guidance block
 (`TOOL_BASH` and up). The edit-tool rule constrains how the `edit` and `write` tools are
 used, so it must be read before their own descriptions rather than competing with
 descriptions the model has already committed to.
 
-Registration is a Cordis effect, so unloading the plugin removes both sections.
+Registration is a Cordis effect, so unloading the plugin removes all three sections.
 
 ## Layout
 
@@ -54,8 +83,8 @@ dsh-chinese/
 ├── index.js                 # the Cordis plugin entry
 ├── src/
 │   ├── core/
-│   │   ├── prompt-text.js   # the two fixed Chinese rules + section names/orders
-│   │   └── settings.js      # the falling-ts-chinese Config (two toggles)
+│   │   ├── prompt-text.js   # the three fixed Chinese rules + section names/orders
+│   │   └── settings.js      # the falling-ts-chinese Config (three toggles)
 │   └── hooks/
 │       └── sections.js      # registration on the live system-prompt registry
 ├── cordis.patch.yml         # the opt-in patch layer (references the package by name)
@@ -68,12 +97,13 @@ there is no `web/client.js`, no `dsh.client` declaration, and no `./client` expo
 
 ## Configuration
 
-Two toggles, read through the entry's own Config. Both default to `true`:
+Three toggles, read through the entry's own Config. All default to `true`:
 
 | Field | Default | Effect |
 |---|---|---|
 | `chineseOnly` | `true` | Contribute the Chinese-language rule. |
 | `editToolOnly` | `true` | Contribute the edit-tool rule. |
+| `inlineScriptOnly` | `true` | Contribute the inline-verification-script rule. |
 
 Set them in the profile's `cordis.yml` on this plugin's entry, or from the settings
 surface. Only a real boolean counts — a malformed value is treated as unset and falls
@@ -94,7 +124,7 @@ exports at startup — that is a harness rule, not a property of this plugin.
 ## Verification
 
 ```sh
-node exploration/ch-prompt-probe.mjs        # 78 checks, fully offline
+node exploration/ch-prompt-probe.mjs        # 99 checks, fully offline
 node exploration/plugin-manifest-check.mjs  # shared manifest gate (5 plugins)
 ```
 

@@ -4,17 +4,21 @@
 
 ## 插件定位
 
-一句话：**在每一次模型请求的系统提示词里追加两条固定规则**——① 所有思考与临时输出必须用
-中文（代码与符号除外）；② 编辑文件必须用编辑文件工具，命令与脚本只能用于检验。
+一句话：**在每一次模型请求的系统提示词里追加三条固定规则**——① 所有思考与临时输出必须用
+中文（代码与符号除外）；② 编辑文件必须用编辑文件工具，命令与脚本只能用于检验；③ 校验脚本
+优先内联执行（here-document 或 `-e`），不要先建临时文件以免污染项目。
 
 - 规则文本是**模块常量**（`src/core/prompt-text.js`），**不是**设置项。理由：文本就是本插件
   的全部存在理由，把它做成可编辑字符串只会为同一条规则制造第二个会漂移的真相源，而不提供
-  任何开关给不了的能力。operator 真正会变的只有"这条规则要不要生效"——那正好是两个布尔。
+  任何开关给不了的能力。operator 真正会变的只有"这条规则要不要生效"——那正好是三个布尔。
 - **中文写规则文本**是有意的：规则本身说的就是"用中文"，用中文陈述它既最短，也最不容易被
   模型用规则所禁止的语言复述一遍。
 - 规则里必须**同时**写明代码/符号的豁免（否则与 harness 自身把标识符、路径、参数钉成字面量
   的指令冲突），以及命令与脚本的**检验**用途（只写禁止会让 agent 没有合规的检查手段，于是
   要么跳过检验、要么照样去用被禁的机制）。
+- **③ 与 ② 互补而非重复**：② 说脚本**能不能**用（只能检验），③ 说既然能用**该怎么用**
+  （内联、不落盘）。"为了跑脚本而先创建它"本身也是一次文件创建，但 ② 没法在不把自己要求的
+  检验一并禁掉的前提下禁止它。③ 同时留出口：确实要被复用、被项目引用的脚本属于仓库正式文件。
 
 ## 挂载缝：`ctx.systemPrompt.section()`
 
@@ -24,13 +28,14 @@
 - **文本必须是 provider（函数），不能是静态字符串**：`PromptSection.text` 允许
   `string | (context) => string`，provider 在**每次装配**时求值。用静态字符串的话，段落会在
   加载时冻结，改开关必须重启才生效——这正是 `ch-prompt-probe.mjs` 第 5 组要守住的东西。
-- **顺序**：`TOOL_BASH`(1000) + `SECTION_ORDER_OFFSET`(-40)，即两段都排在官方工具说明块**之前**。
+- **顺序**：`TOOL_BASH`(1000) + `SECTION_ORDER_OFFSET`(-40)，即三段都排在官方工具说明块**之前**。
   编辑规则约束的是 `edit` / `write` 怎么用，必须排在它们自己的说明之前；排在后面就成了与模型
   已经读过的工具描述争位置。order 经 `getSectionOrder('TOOL_BASH')` **锚定**而非写死字面量，
   上游重排表时自动跟随；注册表缺该槽或抛异常时回退到 `FALLBACK_ANCHOR_ORDER = 1000`。
-- 两段 order 差 1（`+0` / `+1`）。**不要**让它们相等：order 相同时上游按 code-unit 名序决胜，
-  会把 `edit-tool` 排在 `language` 前面，与预期顺序相反。
-- **注册走 `ctx.effect`**：`section()` 归还的正是 Cordis effect disposer，卸载插件即移除两段。
+- 三段的 order 由 `slot` 游标**累加**（`+0` / `+1` / `+2`），只对已启用的规则递增，所以关掉中间
+  一段不会在 order 上留空洞。**不要**让任意两段取到相同 order：order 相同时上游按 code-unit
+  名序决胜，会把 `edit-tool` 排在 `language` 前面，与预期顺序相反。
+- **注册走 `ctx.effect`**：`section()` 归还的正是 Cordis effect disposer，卸载插件即移除三段。
   这是上游"registry contributions prove disposal"那条红线（泄漏的段落会让一个已经卸掉本插件的
   profile 继续被约束）。探针第 6 组断言卸载后注册表为空、且重新 apply 不因重复注册抛错。
 - **关掉时贡献空串，不注销段落**：`renderPrompt` 会丢弃空段落，所以关掉的规则零 token 贡献；
@@ -42,8 +47,11 @@
 ## 设置面
 
 - `src/core/settings.js`：`NS = 'falling-ts-chinese'`、`CHINESE_FIELD = 'chineseOnly'`、
-  `EDIT_TOOL_FIELD = 'editToolOnly'`，
-  `buildConfigSchema() = z.object({ chineseOnly: z.boolean().default(true).volatile(), editToolOnly: … })`。
+  `EDIT_TOOL_FIELD = 'editToolOnly'`、`INLINE_SCRIPT_FIELD = 'inlineScriptOnly'`，
+  `buildConfigSchema() = z.object({ chineseOnly: z.boolean().default(true).volatile(), … })`（三个字段同样式）。
+- **段落名 → 开关字段走显式表**（`TOGGLE_BY_SECTION`），不再是后缀判断。三段以后，"不是 `/language`
+  就是编辑规则"这种名字形状的启发式会把新段落静默接到错误的开关上；表里查不到的名字返回
+  `true`（照常贡献），免得一个没配开关的段落悄悄消失。
 - **命名空间 = 该 profile 条目的 loader id**，所以 `cordis.patch.yml` 的 `insert[].id`、`NS` 常量、
   包名三者必须逐字相同；不一致的表现是**静默**读不到值，不报错。探针第 1 组就是这条。
 - **只有真正的布尔值生效**（`readToggle`）：字符串 `"false"`、数字、`null` 一律按"未设置"处理
@@ -56,7 +64,7 @@
   `deepseek-harness/vendor/schemastery/lib/index.mjs`（`file://` URL 导入，Windows 必需）。
   本插件是**独立仓库**，自己 `node_modules` 里没有 schemastery，这条兜底是它在 standalone
   工作树里也能被 import 的原因。两者都失败时 `Config` 为 `undefined`：entry 没有设置表单，
-  两条规则按 `DEFAULTS` 全开——功能仍然完整，只是没有表单。
+  三条规则按 `DEFAULTS` 全开——功能仍然完整，只是没有表单。
 
 ## 为什么没有客户端半部
 
@@ -84,12 +92,14 @@
 
 ## 验证
 
-- `node exploration/ch-prompt-probe.mjs` —— **78 项**，全程离线（真实 import `index.js` 与
+- `node exploration/ch-prompt-probe.mjs` —— **99 项**，全程离线（真实 import `index.js` 与
   `src/**`，桩 ctx 驱动 `apply`，再按上游 `renderPrompt` 语义渲染回读）：命名空间三处一致 +
-  纯 Host 三条断言；规则文本逐字钉住（含 mjs/js/py 点名声、检验用途、出错回到编辑工具）；
-  段落数量与顺序、order 锚定与递增、两段都在 `TOOL_BASH` 之前；默认值与"非布尔不生效"；
-  `apply` 的注册行为（2 段、都由 `ctx.effect` 持有、`inject` 声明、`name`、无 default export）；
-  **开关按每次装配求值**（同一注册表改设置后重渲染即生效、两段都关时渲染空串）；
+  纯 Host 三条断言；规则文本逐字钉住（含 mjs/js/py 点名声、检验用途、出错回到编辑工具，
+  以及内联规则的 python3/node 两种方式、here-document/-e 传法、"长期留存才写文件"出口）；
+  段落数量与顺序、order 锚定与递增、三段都在 `TOOL_BASH` 之前、"关掉中间一段不留 order 空洞"；
+  默认值与"非布尔不生效"；
+  `apply` 的注册行为（3 段、都由 `ctx.effect` 持有、`inject` 声明、`name`、无 default export）；
+  **开关按每次装配求值**（同一注册表改设置后重渲染即生效、三个开关互不连坐、三段落都关时渲染空串）；
   **卸载后注册表干净**且可重新 apply；锚点回退（自定义 order 被跟随、`getSectionOrder` 抛异常 /
   返回 NaN 都不挂）、`settings` 缺席时仍注册并记 warn；清单与显示元数据。
 - `node exploration/plugin-manifest-check.mjs` —— 已把本插件纳入（现为 5 个 manifest）。

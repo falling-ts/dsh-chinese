@@ -1,5 +1,5 @@
 /**
- * dsh-chinese prompt text — the two fixed model-facing sections this plugin
+ * dsh-chinese prompt text — the three fixed model-facing sections this plugin
  * contributes to every request's system prompt.
  *
  * WHY FIXED TEXT, NOT A SETTING: the text is the plugin's whole reason to
@@ -58,6 +58,27 @@ export const EDIT_TOOL_RULE_TEXT = [
 ].join('\n')
 
 /**
+ * The inline-verification rule: a verification script is executed in place
+ * rather than written to a file first.
+ *
+ * WHY THIS IS A SEPARATE RULE FROM {@link EDIT_TOOL_RULE_TEXT}: that rule says
+ * WHETHER a script may be used (verification only); this one says HOW to run it
+ * once it may be (inline, leaving nothing behind). A script that is written to
+ * disk in order to be run is itself a file creation — but one the edit-tool rule
+ * cannot forbid without also forbidding the verification it mandates. Stating the
+ * inline form closes that gap instead of contradicting the other rule.
+ *
+ * The escape hatch matters as much as the default: a helper that is genuinely
+ * reused, or referenced by the project, belongs in the repository as a real
+ * file. Without it the rule would push useful tooling out of version control.
+ */
+export const INLINE_SCRIPT_RULE_TEXT = [
+  '需要执行校验脚本时，优先直接内联执行，不要先创建临时文件再运行，以免遗留临时文件、污染项目。',
+  '用 here-document 或 -e 传入多行代码：python3 - <<\'PY\' … PY，或 python3 -c \'…\'；node --input-type=module -e \'…\'，或 node - <<\'JS\' … JS。',
+  '仅当脚本需要长期留存、被复用、或被项目正式引用时，才将它写入仓库文件。',
+].join('\n')
+
+/**
  * Stable section names. They are the registry keys for
  * `ctx.systemPrompt.section()` and appear in assembled prompts' section lists,
  * so they are part of this plugin's observable surface (the probe asserts them,
@@ -65,11 +86,12 @@ export const EDIT_TOOL_RULE_TEXT = [
  */
 export const CHINESE_RULE_SECTION = 'falling-ts:dsh-chinese/language'
 export const EDIT_TOOL_RULE_SECTION = 'falling-ts:dsh-chinese/edit-tool'
+export const INLINE_SCRIPT_RULE_SECTION = 'falling-ts:dsh-chinese/inline-script'
 
 /**
  * The fixed, non-negative offset applied to the anchored section orders below.
  *
- * Both sections are placed immediately BEFORE the first-party tool guidance
+ * All sections are placed immediately BEFORE the first-party tool guidance
  * (`TOOL_BASH` = 1000 and up). Rationale: the edit-tool rule constrains how the
  * `edit` / `write` tools are used, so it must be read before their own
  * descriptions rather than appended after — a trailing constraint competes with
@@ -82,30 +104,41 @@ export const SECTION_ORDER_OFFSET = -40
 /**
  * Compose the ordered section contributions for one assembly.
  *
- * The caller passes the two resolved toggles; this function owns only the
+ * The caller passes the three resolved toggles; this function owns only the
  * mapping from "which rules are on" to "which sections exist", which is the
  * part the probe can assert without a live harness.
  *
  * @param {object} options - resolved rule toggles.
  * @param {boolean} options.chinese - include {@link CHINESE_RULE_TEXT}.
  * @param {boolean} options.editTool - include {@link EDIT_TOOL_RULE_TEXT}.
+ * @param {boolean} options.inlineScript - include {@link INLINE_SCRIPT_RULE_TEXT}.
  * @param {number} options.anchorOrder - the registry's `TOOL_BASH` order, used
- *   as the anchor for both sections (see {@link SECTION_ORDER_OFFSET}).
- * @returns {Array<{name: string, order: number, text: string}>} zero, one, or
- *   two sections in assembly order. Empty when both rules are disabled.
+ *   as the anchor for every section (see {@link SECTION_ORDER_OFFSET}).
+ * @returns {Array<{name: string, order: number, text: string}>} zero to three
+ *   sections in assembly order. Empty when every rule is disabled.
  */
-export function buildSections({ chinese, editTool, anchorOrder }) {
+export function buildSections({ chinese, editTool, inlineScript, anchorOrder }) {
   const order = anchorOrder + SECTION_ORDER_OFFSET
   const sections = []
+  let slot = 0
   if (chinese) {
-    sections.push({ name: CHINESE_RULE_SECTION, order, text: CHINESE_RULE_TEXT })
+    sections.push({ name: CHINESE_RULE_SECTION, order: order + slot, text: CHINESE_RULE_TEXT })
+    slot += 1
   }
   if (editTool) {
-    // +1 keeps the two sections deterministic when both are on: sections with
-    // equal orders are tie-broken by code-unit name order, which would put
-    // "edit-tool" before "language" and read the tool rule first. Naming the
-    // intended order explicitly is cheaper than relying on that coincidence.
-    sections.push({ name: EDIT_TOOL_RULE_SECTION, order: order + 1, text: EDIT_TOOL_RULE_TEXT })
+    // Distinct, strictly increasing orders keep the intended order deterministic
+    // when several rules are on: sections with equal orders are tie-broken by
+    // code-unit name order, which would put "edit-tool" before "language" and
+    // read the tool rule first. Naming the intended order explicitly is cheaper
+    // than relying on that coincidence.
+    sections.push({ name: EDIT_TOOL_RULE_SECTION, order: order + slot, text: EDIT_TOOL_RULE_TEXT })
+    slot += 1
+  }
+  if (inlineScript) {
+    // Last of the three: it refines the edit-tool rule (HOW to run the
+    // verification script that rule permits), so it reads directly after it.
+    sections.push({ name: INLINE_SCRIPT_RULE_SECTION, order: order + slot, text: INLINE_SCRIPT_RULE_TEXT })
+    slot += 1
   }
   return sections
 }

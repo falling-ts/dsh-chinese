@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Chinese and edit-tool rules",
-    "description": "Appends two standing rules to every request's system prompt: think and write in Chinese (code and symbols excepted), and edit files with the editing tools while commands and scripts only verify."
+    "description": "Appends three standing rules to every request's system prompt: think in Chinese, edit files with the editing tools while commands and scripts only verify, and run verification scripts inline instead of writing a temporary file."
   }
 }

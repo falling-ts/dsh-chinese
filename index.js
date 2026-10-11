@@ -1,7 +1,7 @@
 /**
  * dsh-chinese — a DSH Cordis function plugin.
  *
- * Appends two standing rules to the system prompt of EVERY model request in
+ * Appends three standing rules to the system prompt of EVERY model request in
  * this deployment:
  *
  *   1. All thinking and temporary output must be written in Chinese, while
@@ -10,6 +10,10 @@
  *   2. Editing or modifying a file must go through the file-editing tools.
  *      Commands and scripts (mjs, js, py, …) may only VERIFY an edit; when
  *      verification fails, the fix must also be made with the editing tool.
+ *   3. A verification script must be run inline — a here-document or `-e`
+ *      payload — instead of being written to a temporary file first, so no
+ *      scratch file is left behind. Only a script meant to be kept, reused, or
+ *      referenced by the project is written into the repository.
  *
  * THE SEAM: `ctx.systemPrompt.section()` — the documented system-prompt
  * extension point first-party tool packages use. No upstream source is touched
@@ -22,8 +26,8 @@
  *
  * Layout:
  * - index.js            — this file; the Cordis plugin entry.
- * - core/prompt-text.js — the two fixed Chinese rules and their section names/orders.
- * - core/settings.js    — the `falling-ts-chinese` settings namespace (two toggles).
+ * - core/prompt-text.js — the three fixed Chinese rules and their section names/orders.
+ * - core/settings.js    — the `falling-ts-chinese` settings namespace (three toggles).
  * - hooks/sections.js   — registration on the live system-prompt registry.
  *
  * @module @falling-ts/dsh-chinese
@@ -50,7 +54,7 @@ export const inject = ['systemPrompt']
  * section providers read them through `bindConfig`, so a form edit applies to
  * the next request. Top-level await because schemastery is resolved lazily
  * (bare specifier first, vendored copy second). `undefined` simply leaves the
- * entry with no settings form, and both rules then stay at their defaults.
+ * entry with no settings form, and every rule then stays at its default.
  */
 export const Config = await buildConfigSchema()
 
@@ -73,8 +77,8 @@ const __applyInner = (ctx, config) => {
   // form declaration rides a lazy `ctx.inject` instead of `inject` above.
   // `configure({ auto: false })` tells the harness this plugin ships no page of
   // its own — this is a Host-only plugin with no client half — so no
-  // auto-generated form section is wanted; the two toggles are read from
-  // cordis.yml / the entry's own config surface.
+  // auto-generated form section is wanted; the toggles are read from cordis.yml
+  // / the entry's own config surface.
   try {
     ctx.inject(['settings'], (child) => {
       child.effect(() => child.settings.configure({ auto: false }, ctx.fiber))
@@ -84,8 +88,8 @@ const __applyInner = (ctx, config) => {
     ctx.logger.warn(`[dsh-chinese] settings.configure declaration failed (cosmetic only) — ${message}`)
   }
 
-  // ── system prompt: the two standing rules ──
-  // Registration is an effect, so unloading the plugin removes both sections.
+  // ── system prompt: the three standing rules ──
+  // Registration is an effect, so unloading the plugin removes every section.
   const count = registerPromptSections(ctx)
 
   ctx.logger.info(`[dsh-chinese] active: ${count} system-prompt section(s) registered (rules apply to every request)`)
