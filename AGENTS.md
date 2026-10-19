@@ -115,6 +115,45 @@
 3. **`settings.configure` 失败只记 warn**：该声明是纯装饰（本插件没有自有设置页），把它做成
    致命会让一个装饰性失败带走主功能。
 
+## harness 0.2.1-rc.2 适配核对（2026-10-19）：零改动
+
+peer 下界升至 **`>=0.2.1-rc.1`**（0.2.1 列车），cordis `>=4.0.5`、schemastery `>=3.18.5`。
+换车理由同其它插件：`peer-range-probe.mjs` 要求声明的列车下界与 checkout 同列车。
+
+`system-prompt` 缝逐条核对（**全部未变**，源码无需改动）：
+
+- `SECTION_ORDERS` 未变：`TOOL_BASH: 1000`、`DEPLOYMENT_PERSONA_SUFFIX: 10200`——两个锚点
+  （工具段 `TOOL_BASH − 40`、语言段 `DEPLOYMENT_PERSONA_SUFFIX + 1`）落点不变；
+- `ctx.systemPrompt.section(section)` 与 `getSectionOrder(name)` 签名不变；
+- 0.2.1 **新增**可选字段 `interpolate`、`required` 与新方法 `refreshContext`——纯增量，
+  本插件不写这两个字段，行为不受影响；
+- 0.2.1 **删除**了 `system-prompt/invariant` 导出，本插件未使用；
+- `settings.configure({ auto: false })`、`ctx.locale`（仅 `locale/*.json` 的 meta 用）未变。
+
+端到端复核（3099 实例，`DSH_HOME=~/.dsh-web`，0.2.1-rc.2）：
+`node exploration/ch-live-probe.mjs 3099` **25/26 通过**——唯一失败是"模型回答里复述了内联执行
+规则"这一条**模型输出随机性**断言（同一轮里其它 25 条已证明提示词逐字包含三段规则、来源标记是
+`system-prompt`、四个锚点顺序全对）；`ch-prompt-probe.mjs` **131 项全绿**（离线）；
+`pluginInventory/list` 中 `include:falling-ts-chinese` 为 `enabled:true` / `fiberPhase:active`；
+`settings/describe` 出现 `falling-ts-chinese`（`applies: live`）。
+
+## 关于 `engines.dsh`（0.2.1 新规范）：有意不迁移
+
+0.2.1 的 boot 期兼容闸门（`packages/boot/app-boot/src/plugin-compatibility.ts`）新增优先级：
+**清单里有 `engines.dsh` 时只看它、忽略全部 `peerDependencies`**；没有则回退旧的逐 peer 判定。
+本集合五个插件**都保留逐 peer 声明，不写 `engines.dsh`**，理由：
+
+1. 插件确实依赖那些具体包（`system-prompt`、`settings`、`agents`……），逐包下界既表达
+   "最低可用的 harness 版本"，也是一份**依赖清单**——出问题时 `pluginInventory` 能指出
+   *哪个* peer 不满足；`engines.dsh` 只给一个笼统的版本范围，诊断价值低。
+2. 旧写法在 0.2.1 上**完全有效**（闸门只在 `engines.dsh` 存在时才忽略 peer），迁移没有收益。
+3. 迁移会**丢失粒度**：`engines.dsh` 只能写一条范围，而本集合的 peer 里还混着 vendor
+   包（cordis / schemastery），它们不属于 dsh 列车，只能留在 peer 里——两套机制并存反而更乱。
+
+**若将来要迁移**：删掉全部 `@deepseek-ai/dsh*` peer、加 `"engines": { "dsh": ">=0.2.1-rc.1" }`，
+并同步改 `peer-range-probe.mjs` 与 `plugin-manifest-check.mjs` 的判定逻辑（它们目前断言的是
+peer 逐字等于列车下界）。这不是"顺手就能改"的事，需要单独决策。
+
 ## 验证
 
 - `node exploration/ch-prompt-probe.mjs` —— **131 项**，全程离线（真实 import `index.js` 与
