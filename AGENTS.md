@@ -10,7 +10,7 @@
 临时文件以免污染项目。**每段首行是一句用 `**…**` 包裹的加粗总纲**，凝练该段的核心要求，
 其后才是细则。
 
-产品名替换（2026-10-21 新增，v0.3.0）：提示词里每一处 `DeepSeek Harness` 都以 `Work Buddy`
+产品名替换（2026-10-21 新增，v0.3.1）：提示词里每一处 `DeepSeek Harness` 都以 `Work Buddy`
 到达模型。要改的那句话是上游 `SystemPrompt` **构造函数自己注册**的身份句（`You are an AI
 agent powered by DeepSeek Harness.`），而 `section()` 只能追加、盖不掉它（同名注册直接
 duplicate throw），所以这半边走注册表的 `system-prompt/assemble` waterfall——见下文"两个缝"。

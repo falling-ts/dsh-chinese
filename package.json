@@ -1,6 +1,6 @@
 {
   "name": "@falling-ts/dsh-chinese",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "DSH Cordis plugin: appends three standing rules to the system prompt of every model request, each opening with a bolded one-line digest of its core requirement — all thinking and temporary output must be written in Chinese while code and symbols keep their original form, every file edit must go through the file-editing tools rather than a command or script, which may only verify an edit, and a verification script must run inline (here-document or -e) instead of being written to a temporary file first — and renders every \"DeepSeek Harness\" in the assembled system prompt as \"Work Buddy\".",
   "type": "module",
   "main": "./index.js",
