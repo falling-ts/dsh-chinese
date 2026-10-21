@@ -1,12 +1,14 @@
 /**
- * dsh-chinese settings — three boolean toggles, nothing else.
+ * dsh-chinese settings — four boolean toggles, nothing else.
  *
  * The prompt TEXT is not configurable (see src/core/prompt-text.js): the rule
  * is the plugin's purpose, and an editable copy would only create a second
  * place for it to drift. What a deployment legitimately varies is whether each
- * rule applies at all — a Chinese-speaking operator wants all three, while a
- * polyglot deployment may want the language rule off and the edit-tool rule on.
- * That is exactly three booleans, and none has a real third state.
+ * rule applies at all — a Chinese-speaking operator wants all three rules,
+ * while a polyglot deployment may want the language rule off and the edit-tool
+ * rule on — plus, for the product-name substitution, whether that substitution
+ * runs at all (see src/core/rebrand.js). That is exactly four booleans, and
+ * none has a real third state.
  *
  * Harness 0.1.7 replaced the old `settings.register(ns, schema, { base })` API
  * with a Config-driven model: the plugin exports `Config`, the settings form
@@ -36,6 +38,14 @@ export const EDIT_TOOL_FIELD = 'editToolOnly'
 export const INLINE_SCRIPT_FIELD = 'inlineScriptOnly'
 
 /**
+ * 字段名:产品名替换开关。
+ *
+ * 它不是一条"规则",而是一次改写——把系统提示词里已经存在的产品名换成本部署自己的名字
+ * (见 src/core/rebrand.js)。因此它不进 {@link readRuleToggles},那个函数喂给段落注册。
+ */
+export const REBRAND_FIELD = 'rebrand'
+
+/**
  * Defaults — the schema `.default()` values in {@link buildConfigSchema}.
  * All default ON: installing the plugin is the opt-in, and a plugin that does
  * nothing until a second switch is found is a worse failure than a rule an
@@ -45,6 +55,7 @@ export const DEFAULTS = Object.freeze({
   chineseOnly: true,
   editToolOnly: true,
   inlineScriptOnly: true,
+  rebrand: true,
 })
 
 /**
@@ -112,6 +123,18 @@ export function readRuleToggles() {
 }
 
 /**
+ * 读产品名替换开关。
+ *
+ * 与 {@link readRuleToggles} 分开:那个函数的返回值驱动**段落注册**,而替换是 waterfall
+ * 后处理,不是段落。两者共用 {@link readToggle} 的判定——只有真正的布尔值生效,打错的
+ * 值按未设置处理并回退到默认。
+ * @returns {boolean} 本次装配是否执行产品名替换。
+ */
+export function readRebrandRewrite() {
+  return readToggle(REBRAND_FIELD, DEFAULTS.rebrand)
+}
+
+/**
  * Resolve the schemastery `z` constructor, tolerating BOTH layouts:
  *  - a monorepo/dev layout where `@deepseek-ai/schemastery` resolves as a
  *    bare specifier;
@@ -153,7 +176,7 @@ async function resolveZ() {
  *
  * Returns `undefined` when schemastery is unresolvable: the entry then simply
  * has no settings form, and the prompt sections fall back to {@link DEFAULTS}
- * (both rules on). The plugin still works — only its form is missing.
+ * (every rule on). The plugin still works — only its form is missing.
  * @returns {Promise<object|undefined>} the Config schema, or undefined.
  */
 export async function buildConfigSchema() {
@@ -164,6 +187,7 @@ export async function buildConfigSchema() {
       chineseOnly: z.boolean().default(DEFAULTS.chineseOnly).volatile(),
       editToolOnly: z.boolean().default(DEFAULTS.editToolOnly).volatile(),
       inlineScriptOnly: z.boolean().default(DEFAULTS.inlineScriptOnly).volatile(),
+      rebrand: z.boolean().default(DEFAULTS.rebrand).volatile(),
     })
   } catch {
     return undefined

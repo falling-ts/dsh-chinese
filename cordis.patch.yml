@@ -16,13 +16,20 @@
 #   3. a verification script run inline (here-document or -e) rather than
 #      written to a temporary file first, so no scratch file is left behind.
 #
+# It also substitutes the deployment's own product name: every `DeepSeek
+# Harness` the harness writes into the assembled system prompt reaches the
+# model as `Work Buddy`. That half rides the registry's own
+# `system-prompt/assemble` waterfall, because `section()` can only append text
+# while the identity sentence belongs to a section the registry registers
+# itself.
+#
 # The `**…**` reaches the model as written: upstream's `renderPrompt` only
 # interpolates `{{…}}` and drops empty sections, so the markers are not markup
 # to be stripped — first-party system prompts use the same emphasis.
 #
-# All three rules default to on and are toggled through the entry's own Config
-# (chineseOnly / editToolOnly / inlineScriptOnly). There is no client half: the
-# rules change what the model reads, not what the UI shows.
+# All four switches default to on and are toggled through the entry's own Config
+# (chineseOnly / editToolOnly / inlineScriptOnly / rebrand). There is no client
+# half: the rules change what the model reads, not what the UI shows.
 
 - insert:
     - id: falling-ts-chinese

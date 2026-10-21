@@ -2,7 +2,8 @@
  * dsh-chinese — a DSH Cordis function plugin.
  *
  * Appends three standing rules to the system prompt of EVERY model request in
- * this deployment:
+ * this deployment, and substitutes the deployment's own product name for the
+ * one the harness writes into that prompt:
  *
  *   1. All thinking and temporary output must be written in Chinese, while
  *      code, identifiers, paths, commands, and symbols stay in their original
@@ -21,9 +22,20 @@
  * drops empty sections — and mirrors how first-party system prompts mark their
  * own binding rules.
  *
- * THE SEAM: `ctx.systemPrompt.section()` — the documented system-prompt
- * extension point first-party tool packages use. No upstream source is touched
- * and no runtime object is patched.
+ * THE SEAMS: `ctx.systemPrompt.section()` — the documented system-prompt
+ * extension point first-party tool packages use — plus the registry's own
+ * `system-prompt/assemble` waterfall, used for the product-name substitution
+ * described next. No upstream source is touched and no runtime object is
+ * patched: both are events/methods upstream declares and documents.
+ *
+ * PRODUCT-NAME SUBSTITUTION: every `DeepSeek Harness` the harness writes into
+ * its system prompt reaches the model as `Work Buddy`. `section()` cannot
+ * express that — it only appends text, while the identity sentence belongs to
+ * a section the registry registers itself — so the substitution post-processes
+ * the assembly on the documented waterfall instead. See src/core/rebrand.js
+ * for its exact scope: sections and interpolation variables are rewritten,
+ * runtime contexts are deliberately not (they are recomputed per request by
+ * `refreshContext`, so a rewrite there would be overwritten).
  *
  * WHY THIS IS A HOST-ONLY PLUGIN: the sections are registered on the Host's
  * `systemPrompt` registry, which is where the model request is assembled. There
@@ -33,13 +45,16 @@
  * Layout:
  * - index.js            — this file; the Cordis plugin entry.
  * - core/prompt-text.js — the three fixed Chinese rules and their section names/orders.
- * - core/settings.js    — the `falling-ts-chinese` settings namespace (three toggles).
+ * - core/rebrand.js     — the product-name substitution and its scope.
+ * - core/settings.js    — the `falling-ts-chinese` settings namespace (four toggles).
  * - hooks/sections.js   — registration on the live system-prompt registry.
+ * - hooks/rebrand.js    — the assembly post-processor that applies the substitution.
  *
  * @module @falling-ts/dsh-chinese
  */
 
 import { bindConfig, buildConfigSchema } from './src/core/settings.js'
+import { registerRebrandRewrite } from './src/hooks/rebrand.js'
 import { registerPromptSections } from './src/hooks/sections.js'
 
 /** @type {string} the function plugin's display name. */
@@ -67,10 +82,13 @@ export const Config = await buildConfigSchema()
 /**
  * Register the plugin's prompt sections and declare its settings form.
  *
- * No request-time listener is needed: the sections are evaluated during prompt
- * assembly, which happens for every request by construction. That is the whole
- * reason this plugin contributes sections instead of hooking a turn event — a
- * section cannot be skipped by a request path, an event listener can.
+ * No request-time turn listener is needed: the sections are evaluated during
+ * prompt assembly, which happens for every request by construction. That is the
+ * whole reason this plugin contributes sections instead of hooking a turn
+ * event — a section cannot be skipped by a request path, a turn listener can.
+ * The one listener this plugin does register is the assembly waterfall in
+ * src/hooks/rebrand.js, which is itself part of prompt assembly and so runs on
+ * the same guarantee.
  *
  * @param {import('@deepseek-ai/cordis').Context} ctx - plugin context with
  *   `systemPrompt` active.
@@ -98,7 +116,13 @@ const __applyInner = (ctx, config) => {
   // Registration is an effect, so unloading the plugin removes every section.
   const count = registerPromptSections(ctx)
 
-  ctx.logger.info(`[dsh-chinese] active: ${count} system-prompt section(s) registered (rules apply to every request)`)
+  // ── system prompt: the deployment's own product name ──
+  // Runs on the assembly waterfall rather than as a section, because the name
+  // being replaced sits in sections the registry registers itself. Also an
+  // effect, so unloading removes the listener too.
+  registerRebrandRewrite(ctx)
+
+  ctx.logger.info(`[dsh-chinese] active: ${count} system-prompt section(s) + product-name substitution registered (apply to every request)`)
 }
 
 /**

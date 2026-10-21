@@ -4,14 +4,22 @@
 
 ## 插件定位
 
-一句话：**在每一次模型请求的系统提示词里追加三条固定规则**——① 所有思考与临时输出必须用
-中文（代码与符号除外）；② 编辑文件必须用编辑文件工具，命令与脚本只能用于检验；③ 校验脚本
-优先内联执行（here-document 或 `-e`），不要先建临时文件以免污染项目。**每段首行是一句用
-`**…**` 包裹的加粗总纲**，凝练该段的核心要求，其后才是细则。
+一句话：**在每一次模型请求的系统提示词里追加三条固定规则、并把提示词里的产品名换成本部署
+自己的名字**——① 所有思考与临时输出必须用中文（代码与符号除外）；② 编辑文件必须用编辑文件
+工具，命令与脚本只能用于检验；③ 校验脚本优先内联执行（here-document 或 `-e`），不要先建
+临时文件以免污染项目。**每段首行是一句用 `**…**` 包裹的加粗总纲**，凝练该段的核心要求，
+其后才是细则。
+
+产品名替换（2026-10-21 新增，v0.3.0）：提示词里每一处 `DeepSeek Harness` 都以 `Work Buddy`
+到达模型。要改的那句话是上游 `SystemPrompt` **构造函数自己注册**的身份句（`You are an AI
+agent powered by DeepSeek Harness.`），而 `section()` 只能追加、盖不掉它（同名注册直接
+duplicate throw），所以这半边走注册表的 `system-prompt/assemble` waterfall——见下文"两个缝"。
 
 - 规则文本是**模块常量**（`src/core/prompt-text.js`），**不是**设置项。理由：文本就是本插件
   的全部存在理由，把它做成可编辑字符串只会为同一条规则制造第二个会漂移的真相源，而不提供
-  任何开关给不了的能力。operator 真正会变的只有"这条规则要不要生效"——那正好是三个布尔。
+  任何开关给不了的能力。operator 真正会变的只有"这条规则要不要生效"——那正好是四个布尔。
+  品牌替换的两个词（`DeepSeek Harness` / `Work Buddy`）同理是常量而非配置项：本部署要的就是
+  这一对名字，做成可编辑字段既没有第二个消费者，也会让探针失去可钉住的字面量。
 - **加粗总纲只准复述、不准新增要求**：它是凝练改写（不是细则的子串），所以探针用**概念词表**
   双向断言——总纲要覆盖该段的全部核心概念，且每个概念在细则里都有落点。总纲一旦引入细则
   没有的新要求，就等于多了一条没人审过的规则。
@@ -34,11 +42,25 @@
   （内联、不落盘）。"为了跑脚本而先创建它"本身也是一次文件创建，但 ② 没法在不把自己要求的
   检验一并禁掉的前提下禁止它。③ 同时留出口：确实要被复用、被项目引用的脚本属于仓库正式文件。
 
-## 挂载缝：`ctx.systemPrompt.section()`
+## 两个缝：`ctx.systemPrompt.section()` 与 `system-prompt/assemble`
 
-- 这是**官方文档化的**系统提示词扩展点，一等公民工具包自己就用它（`packages/fs/tool-fs/src/edit.ts`、
-  `packages/terminal/tool-terminal/src/index.ts`）。因此本插件**不改上游源码、不做任何运行期替换**
-  ——这是它与 `dsh-local-no-auth` 的根本区别，后者替换实例方法是因为认证面**没有**官方出口。
+- **缝一 `section()`**：这是**官方文档化的**系统提示词扩展点，一等公民工具包自己就用它
+  （`packages/fs/tool-fs/src/edit.ts`、`packages/terminal/tool-terminal/src/index.ts`）。
+- **缝二 `system-prompt/assemble`**：上游 `SystemPrompt` 在 `Events` 接口里声明的 waterfall
+  （`packages/core/system-prompt/src/index.ts`，JSDoc 带 `@mode waterfall`），装配完成后派发，
+  **返回值是权威的**。产品名替换挂在这里，在 `next()` **之后**改写，所以只叠加、不改动链上
+  任何既有贡献。
+- 两条缝都是官方扩展点，因此本插件**不改上游源码、不 patch 任何运行期对象**——这是它与
+  `dsh-local-no-auth` 的根本区别，后者替换实例方法是因为认证面**没有**官方出口。
+- **waterfall 红线：必须调用 `next()`**（上游 `docs/cordis-primer.md`：它是 around-middleware，
+  不调用 `next()` 就是短路整条链）。探针第 9 组用"内层监听器是否被执行"把这条锁死。
+- **为什么替换只动 `sections` 与 `variables`、不动 `contexts`**：运行时上下文由
+  `refreshContext` 在**每次请求**用 provider 重新求值（上游 `agent.ts` 在 `renderPrompt` 之后
+  调用它），任何写进 `contexts` 的改写都会被那次求值覆盖。留一个"有时生效"的行为比不写更糟。
+  代价是 runtime context 里那两行 `Current DeepSeek Harness …` 仍带旧名——它们是 user-role
+  运行时快照，不属于系统提示词。
+- **装配是每次 step 重跑的**（`agent.ts`：`await systemPrompt.assemble(...)`），所以 waterfall
+  后处理对每个请求都生效，不存在"只改到第一个请求"的问题。
 - **文本必须是 provider（函数），不能是静态字符串**：`PromptSection.text` 允许
   `string | (context) => string`，provider 在**每次装配**时求值。用静态字符串的话，段落会在
   加载时冻结，改开关必须重启才生效——这正是 `ch-prompt-probe.mjs` 第 5 组要守住的东西。
@@ -72,8 +94,11 @@
 ## 设置面
 
 - `src/core/settings.js`：`NS = 'falling-ts-chinese'`、`CHINESE_FIELD = 'chineseOnly'`、
-  `EDIT_TOOL_FIELD = 'editToolOnly'`、`INLINE_SCRIPT_FIELD = 'inlineScriptOnly'`，
-  `buildConfigSchema() = z.object({ chineseOnly: z.boolean().default(true).volatile(), … })`（三个字段同样式）。
+  `EDIT_TOOL_FIELD = 'editToolOnly'`、`INLINE_SCRIPT_FIELD = 'inlineScriptOnly'`、
+  `REBRAND_FIELD = 'rebrand'`，
+  `buildConfigSchema() = z.object({ chineseOnly: z.boolean().default(true).volatile(), … })`（四个字段同样式）。
+- `rebrand` **不进** `readRuleToggles()`：那个函数的返回值驱动段落注册，而替换不是段落、是
+  waterfall 后处理。它走独立的 `readRebrandRewrite()`，共用同一条"只有真布尔值生效"的判定。
 - **段落名 → 开关字段走显式表**（`TOGGLE_BY_SECTION`），不再是后缀判断。三段以后，"不是 `/language`
   就是编辑规则"这种名字形状的启发式会把新段落静默接到错误的开关上；表里查不到的名字返回
   `true`（照常贡献），免得一个没配开关的段落悄悄消失。
@@ -130,10 +155,11 @@ peer 下界升至 **`>=0.2.1-rc.1`**（0.2.1 列车），cordis `>=4.0.5`、sche
 - 0.2.1 **删除**了 `system-prompt/invariant` 导出，本插件未使用；
 - `settings.configure({ auto: false })`、`ctx.locale`（仅 `locale/*.json` 的 meta 用）未变。
 
-端到端复核（3099 实例，`DSH_HOME=~/.dsh-web`，0.2.1-rc.2）：
-`node exploration/ch-live-probe.mjs 3099` **25/26 通过**——唯一失败是"模型回答里复述了内联执行
-规则"这一条**模型输出随机性**断言（同一轮里其它 25 条已证明提示词逐字包含三段规则、来源标记是
-`system-prompt`、四个锚点顺序全对）；`ch-prompt-probe.mjs` **131 项全绿**（离线）；
+端到端复核（3099 隔离实例，`DSH_HOME=~/.dsh-web`，0.2.1-rc.2）：
+`node exploration/ch-live-probe.mjs 3099` **27/28 通过**——唯一失败仍是"模型回答里复述了内联执行
+规则"这一条**模型输出随机性**断言（同一轮里其它 27 条已证明提示词逐字包含三段规则、来源标记是
+`system-prompt`、四个锚点顺序全对，且身份句已是 `powered by Work Buddy`、整份提示词里不再出现
+`DeepSeek Harness`）；`ch-prompt-probe.mjs` **158 项全绿**（离线）；
 `pluginInventory/list` 中 `include:falling-ts-chinese` 为 `enabled:true` / `fiberPhase:active`；
 `settings/describe` 出现 `falling-ts-chinese`（`applies: live`）。
 
@@ -156,8 +182,9 @@ peer 逐字等于列车下界）。这不是"顺手就能改"的事，需要单�
 
 ## 验证
 
-- `node exploration/ch-prompt-probe.mjs` —— **131 项**，全程离线（真实 import `index.js` 与
-  `src/**`，桩 ctx 驱动 `apply`，再按上游 `renderPrompt` 语义渲染回读）：命名空间三处一致 +
+- `node exploration/ch-prompt-probe.mjs` —— **158 项**，全程离线（真实 import `index.js` 与
+  `src/**`，桩 ctx 驱动 `apply`，再按上游 `renderPrompt` 语义渲染回读；桩 ctx 也实现了 `ctx.on`
+  与 waterfall 链式调用，所以第 9 组能在离线复现装配后处理）：命名空间三处一致 +
   纯 Host 三条断言；规则文本逐字钉住（含**每段首行的加粗总纲**与"每段恰好一对 `**`"、
   总纲/细则的概念词表双向断言，以及 mjs/js/py 点名声、检验用途、出错回到编辑工具，
   内联规则的 python3/node 两种方式、here-document/-e 传法、"长期留存才写文件"出口）；
@@ -171,7 +198,12 @@ peer 逐字等于列车下界）。这不是"顺手就能改"的事，需要单�
   `apply` 的注册行为（3 段、都由 `ctx.effect` 持有、`inject` 声明、`name`、无 default export）；
   **开关按每次装配求值**（同一注册表改设置后重渲染即生效、三个开关互不连坐、三段落都关时渲染空串）；
   **卸载后注册表干净**且可重新 apply；锚点回退（自定义 order 被跟随、`getSectionOrder` 抛异常 /
-  返回 NaN 都不挂）、`settings` 缺席时仍注册并记 warn；清单与显示元数据。
+  返回 NaN 都不挂）、`settings` 缺席时仍注册并记 warn；清单与显示元数据；
+  **第 9 组·产品名替换**：两个常量逐字、文本里每一处都被换（不是只换第一处）、单独的
+  `DeepSeek` 不受影响、非字符串与空串原样返回、身份句渲染为 `powered by Work Buddy`、结果里
+  不再出现旧名、`contexts`/`tools` 按引用透传、下游监听器确实被执行（未短路 waterfall）、
+  关掉开关后一个字节都不改、重新打开后下一次装配立即生效、字符串 `"false"` 回退默认、
+  卸载后监听器被摘掉。
 - `node exploration/plugin-manifest-check.mjs` —— 已把本插件纳入（现为 5 个 manifest）。
 - `node exploration/peer-range-probe.mjs` —— 127 项，已覆盖本插件的 peer 写法。
 - 线上端到端见根 `AGENTS.md` 的"验证"小节（`pluginInventory/list` 里
@@ -181,10 +213,12 @@ peer 逐字等于列车下界）。这不是"顺手就能改"的事，需要单�
 
 - **无 timer、无持久化、无进程内可变状态**。`settings.js` 里唯一的模块级状态是 `liveConfig`
   这个引用持有者（由 `apply` 调 `bindConfig` 写一次），段落注册全在 `ctx.effect` 里。
-- 新增能力时守住三条红线：① 只经**官方扩展点**（系统提示词注册表）贡献，绝不新增运行期替换；
-  ② 规则文本固定且逐字进探针，不得改成可配置（**加粗总纲同样固定**：它也是文本，也要逐字进探针，
-  且只准复述该段细则已有的要求）；③ 关掉的规则必须渲染为空串（零 token），
-  不得留下空段落或占位文本。
+- 新增能力时守住三条红线：① 只经**官方扩展点**贡献——系统提示词注册表，或上游在 `Events` 里
+  声明的事件；**绝不 patch 运行期对象**（`dsh-local-no-auth` 那种实例方法替换在本插件一律不
+  接受）。② 规则文本固定且逐字进探针，不得改成可配置（**加粗总纲同样固定**：它也是文本，也要
+  逐字进探针，且只准复述该段细则已有的要求）；品牌替换词（`REBRAND_FROM`/`REBRAND_TO`）同理
+  是逐字进探针的常量。③ 关掉的规则必须渲染为空串（零 token），不得留下空段落或占位文本；
+  关掉的替换必须**一个字节都不改**装配结果。
 - 位置约定（改动时必须一并考虑）：**工具规则**锚 `TOOL_BASH`−40（在工具说明之前）；
   **语言规则**锚 `DEPLOYMENT_PERSONA_SUFFIX`+1（提示词最末尾），且**尾部锚点解析不到时宁可不注册**。
   语言规则的位置不是装饰——它靠 recency 对抗稀释，挪回中段就等于放弃那条实测依据。
