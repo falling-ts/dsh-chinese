@@ -163,6 +163,35 @@ peer 下界升至 **`>=0.2.1-rc.1`**（0.2.1 列车），cordis `>=4.0.5`、sche
 `pluginInventory/list` 中 `include:falling-ts-chinese` 为 `enabled:true` / `fiberPhase:active`；
 `settings/describe` 出现 `falling-ts-chinese`（`applies: live`）。
 
+## harness 0.2.1-rc.3 适配核对（2026-10-24）：零改动
+
+上游 `687f282e86`（rc.2）→ `22ddee3792`（master HEAD，`dsh-v0.2.1-rc.3-1533-g22ddee3792`）
+共 **1539 个提交**，版本列车仍是 **0.2.1**（rc.2 → rc.3），vendor `cordis 4.0.5` /
+`schemastery 3.18.5` 均未变，故 peer 下界 **`>=0.2.1-rc.1` 保持不变**——同列车补丁收窄下界只
+会让 rc.1 运行时被 boot 期预检静默禁用。
+
+`system-prompt` 缝逐条核对（**全部未变**，源码无需改动）：
+
+- `SECTION_ORDERS` 逐字未变（`TOOL_BASH: 1000`、`DEPLOYMENT_PERSONA_SUFFIX: 10200` 仍在原位），
+  两个锚点落点不变；
+- `ctx.systemPrompt.section(section)`、`getSectionOrder(name)` 签名不变；`section()` 仍归还 disposer；
+- **`system-prompt/assemble` waterfall 的入参类型改名并收窄**：`PromptAssembly` 拆成
+  `PromptPresentation`（`sections` / `contexts` / `variables`）+ 完整 `PromptAssembly`
+  （多一个 `tools`）。**waterfall 监听器现在收到的是 `PromptPresentation`——没有 `tools` 字段**，
+  且工具声明不再允许被 waterfall 替换（`assemble()` 在 waterfall 之后自行贴回 `tools`）。
+  对本插件**零影响**：`rebrandAssembly` 只重建 `sections` 与 `variables`、其余字段按引用透传
+  （`{...assembly}` 展开），本来就不读写 `tools`；`ch-prompt-probe.mjs` 第 9 组的
+  "tools 字段按引用透传"一项在 rc.3 上仍然通过。
+- 新增（纯增量，本插件不用）：`text({ scope, toolSet })` / `ctx.tools.get(name, scope, toolSet)`
+  可按步骤工具集选片段；`assemble(context)` 现在带 `context.modelSelection` 与 `context.toolSet`。
+
+端到端复核（3099 隔离实例，`DSH_HOME=~/.dsh-web`，0.2.1-rc.3）：
+`node exploration/ch-live-probe.mjs 3099` **27/28 通过**——唯一失败仍是那条
+"模型回答里复述了内联执行规则"的**模型输出随机性**断言；其余 27 条证明提示词逐字包含三段规则、
+来源标记是 `system-prompt`、四个锚点顺序全对、身份句已是 `powered by Work Buddy`。
+离线 `ch-prompt-probe.mjs` **158 项全绿**；`pluginInventory/list` 中
+`include:falling-ts-chinese` 为 `enabled:true` / `fiberPhase:active`。
+
 ## 关于 `engines.dsh`（0.2.1 新规范）：有意不迁移
 
 0.2.1 的 boot 期兼容闸门（`packages/boot/app-boot/src/plugin-compatibility.ts`）新增优先级：
