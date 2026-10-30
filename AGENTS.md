@@ -163,6 +163,45 @@ peer 下界升至 **`>=0.2.1-rc.1`**（0.2.1 列车），cordis `>=4.0.5`、sche
 `pluginInventory/list` 中 `include:falling-ts-chinese` 为 `enabled:true` / `fiberPhase:active`；
 `settings/describe` 出现 `falling-ts-chinese`（`applies: live`）。
 
+## harness 0.2.1-rc.5 适配核对（2026-10-30）：零改动
+
+基线切到 **`dsh-v0.2.1-rc.5`**（`b830ec950f`）——npm 上 `@deepseek-ai/dsh-*` 的
+**`next` dist-tag** 所指版本，即「线上最新 rc」。
+
+**先看清这条线的拓扑**（上一节容易误读）：rc.4 / rc.5 是从 **rc.3 tag 拉出的 release 分支**
+（`worktree/release-dsh-0.2.1-rc.5`），相对 rc.3 只多 **13 个修复提交**——`ui-chat` 的 thinking
+块渲染、`ui-conversation` 的 slot 目录、`llm-deepseek-account` / `mcp-client` 的 stdout 诊断。
+它们**不包含** master 主线上 rc.3 之后的 1500+ 个提交（那条线版本号已升到 `0.2.2-alpha.2`，
+`alpha` dist-tag 指的正是它）。所以上一节（2026-10-24）记录的“变更”——
+`system-prompt/assemble` 入参换成 `PromptPresentation`（收窄掉 `tools`）、`agent/pre-step` 新增
+`modelSelection`、`agent/request` 被标 `@deprecated`——**在 rc.5 上根本不存在**，它们是 0.2.2
+方向的工作。日后若把基线推到 `0.2.2-alpha`／0.2.2，才需要按那一节的结论办。
+
+`system-prompt` 缝在 rc.5 上逐条核对（**与 rc.2 时的形态一致，全部未变**，源码无需改动）：
+
+- `system-prompt/assemble` 的声明仍是
+  `(assembly: PromptAssembly, context: AssembleContext, next) => Promise<PromptAssembly>`，
+  **仍然带 `tools`**；仓库里搜不到 `PromptPresentation` / `modelSelection` / `toolSet` 任何一个；
+- `SECTION_ORDERS` 逐字未变：`TOOL_BASH: 1000`（`index.ts:138`）、
+  `DEPLOYMENT_PERSONA_SUFFIX: 10200`（`index.ts:164`）——两个锚点落点不变；
+- `section(section: PromptSection): () => void`（`index.ts:478`）签名与归还 disposer 的语义未变；
+- 故 `rebrandAssembly`（只重建 `sections`/`variables`、其余按引用透传）与三段规则注册
+  **一行都不用改**。
+
+端到端复核（3099 隔离实例，`DSH_HOME=~/.dsh-web`，页面版本串 `0.2.1-rc.5`）：
+`node exploration/ch-live-probe.mjs 3099` **27/28 通过**——失败项仍是那条
+“模型回答里复述了内联执行规则”的**软判据**（探针注释自述是软判据：靠模型自述侧面印证它读到了
+规则），而**同轮 22 项硬证据全绿**：`system/message` 里逐字出现三条规则与三个加粗总纲、来源是
+`system-prompt`、三条规则相对官方工具说明的顺序全对、中文规则稳落提示词尾部、身份句已是
+`powered by Work Buddy` 且全文不再出现 `DeepSeek Harness`。离线 `ch-prompt-probe.mjs`
+**158 项全绿**。
+
+**环境备忘（踩过一次）**：该隔离 home 的 `agent-default-model` 曾被配成
+`provider: work-buddy`，而 `llm-pi-ai.providers` 里没有 `work-buddy` → 回合以 `NO_ADAPTER`
+结束、会话里没有 `assistant/message`，探针那 3 项软判据全红（**看起来像插件坏了，实际是模型
+根本没被调到**）。改回 `provider: autodl` / `model: DeepSeek-V4.1-Flash-1017` 后恢复 27/28。
+判据：`session/page` 的事件里**有没有 `assistant/message`**。
+
 ## harness 0.2.1-rc.3 适配核对（2026-10-24）：零改动
 
 上游 `687f282e86`（rc.2）→ `22ddee3792`（master HEAD，`dsh-v0.2.1-rc.3-1533-g22ddee3792`）
