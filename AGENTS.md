@@ -163,6 +163,38 @@ peer 下界升至 **`>=0.2.1-rc.1`**（0.2.1 列车），cordis `>=4.0.5`、sche
 `pluginInventory/list` 中 `include:falling-ts-chinese` 为 `enabled:true` / `fiberPhase:active`；
 `settings/describe` 出现 `falling-ts-chinese`（`applies: live`）。
 
+## harness 0.2.2-rc.1 适配核对（2026-11-10）：源码零改动，peer 换车
+
+基线切到 **`dsh-v0.2.2-rc.1`**（`fcc0ad4621`，master HEAD 合入 release 后的文档提交；tag
+`dsh-v0.2.2-rc.1` 指向 `66491b05`）——npm 上 `@deepseek-ai/dsh-*` 的 **`next` dist-tag** 所指
+版本，即「线上最新 rc」。从 `b830ec950f`（0.2.1-rc.5）到这里共 **3434 个提交**，
+6234 个文件、+316362/−58855 行。
+
+**这是真实换车**（0.2.1 → 0.2.2），不是同列车补丁，所以 peer 下界必须跟着走：
+`>=0.2.1-rc.1` → **`>=0.2.2-rc.1`**；vendor 同步 `cordis 4.0.5 → 4.1.0`、
+`schemastery 3.18.5 → 3.19.0`（peer 写 `>=4.1.0` / `>=3.19.0`）。版本 0.3.2 → 0.3.3。
+
+上一节（rc.5）里那条"`PromptPresentation` 收窄在 rc.5 上不存在"的备注，**在这一版失效了**——
+0.2.2 正是把它落地的版本：
+
+- **`system-prompt/assemble` 的入参真的换成 `PromptPresentation`**（`index.ts`：`sections` /
+  `contexts` / `variables`，**没有 `tools`**）；完整 `PromptAssembly extends PromptPresentation`
+  多出的 `tools` 由 `assemble()` 在 waterfall **之后**自行 `orderTools` 贴上，waterfall 不再
+  能替换工具声明。**对本插件仍是零影响**：`rebrandAssembly` 用 `{...assembly}` 透传、只重建
+  `sections` 与 `variables` 两个字段，而这两个字段都原样留在 `PromptPresentation` 里；
+  `ch-prompt-probe.mjs` 第 9 组"其余字段按引用透传"照常通过。
+- **`SECTION_ORDERS` 两个锚点逐字未变**：`TOOL_BASH: 1000`（`index.ts:143`）、
+  `DEPLOYMENT_PERSONA_SUFFIX: 10200`（`index.ts:171`）——工具段锚 `TOOL_BASH−40`、语言段锚
+  `DEPLOYMENT_PERSONA_SUFFIX+1` 落点不变。同表新增 `TOOL_APPLY_PATCH: 1350`、
+  `TOOL_SCHEDULE: 2500`、`HARNESS_IDENTITY: -1000` 等槽位，纯增量。
+- `section(section: PromptSection): () => void` 签名与归还 disposer 的语义未变
+  （`index.ts:484` 仍在）。
+- `settings.configure({ auto: false })`、`ctx.locale`（仅 `locale/*.json` 的 meta）未变。
+- 上游**删除**了 `system-prompt/invariant` 导出（0.2.1 就已删），本插件未使用。
+
+离线 `ch-prompt-probe.mjs` **158 项全绿**（探针的 peer 断言同步改为
+`>=0.2.2-rc.1` / `>=4.1.0` / `>=3.19.0`）。
+
 ## harness 0.2.1-rc.5 适配核对（2026-10-30）：零改动
 
 基线切到 **`dsh-v0.2.1-rc.5`**（`b830ec950f`）——npm 上 `@deepseek-ai/dsh-*` 的

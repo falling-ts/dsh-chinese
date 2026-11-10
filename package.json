@@ -1,6 +1,6 @@
 {
   "name": "@falling-ts/dsh-chinese",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "DSH Cordis plugin: appends three standing rules to the system prompt of every model request, each opening with a bolded one-line digest of its core requirement — all thinking and temporary output must be written in Chinese while code and symbols keep their original form, every file edit must go through the file-editing tools rather than a command or script, which may only verify an edit, and a verification script must run inline (here-document or -e) instead of being written to a temporary file first — and renders every \"DeepSeek Harness\" in the assembled system prompt as \"Work Buddy\".",
   "type": "module",
   "main": "./index.js",
@@ -19,10 +19,10 @@
   "icon": "./icon.svg",
   "license": "MIT",
   "peerDependencies": {
-    "@deepseek-ai/cordis": ">=4.0.5",
-    "@deepseek-ai/dsh-settings": ">=0.2.1-rc.1",
-    "@deepseek-ai/dsh-system-prompt": ">=0.2.1-rc.1",
-    "@deepseek-ai/schemastery": ">=3.18.5"
+    "@deepseek-ai/cordis": ">=4.1.0",
+    "@deepseek-ai/dsh-settings": ">=0.2.2-rc.1",
+    "@deepseek-ai/dsh-system-prompt": ">=0.2.2-rc.1",
+    "@deepseek-ai/schemastery": ">=3.19.0"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/dsh-settings": {
